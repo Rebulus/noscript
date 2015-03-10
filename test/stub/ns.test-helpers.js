@@ -5,6 +5,16 @@
 ns.test = {};
 
 /**
+ * Включает логирование исключений в консоль.
+ * @param {sinon.sandbox} sinon
+ */
+ns.test.disableExceptionLogger = function(sinon) {
+    ns.log.exception.restore();
+    // убираем логи из консоли
+    sinon.stub(ns.log, 'exception');
+};
+
+/**
  * Включает автоответ валидными моделями
  * @param {sinon.sandbox} sinon
  */
