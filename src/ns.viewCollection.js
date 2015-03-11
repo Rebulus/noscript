@@ -444,7 +444,8 @@ ns.ViewCollection.prototype._updateHTML = function(node, layout, params, updateO
         }
 
         if (hadOldNode && !this.isLoading()) {
-            this._hide(events['ns-view-hide']);
+            // ноду или заменили или сейчас заменят, поэтому менять ей класс и прятать ее на надо
+            this._hide(events['ns-view-hide'], true);
             this._htmldestroy(events['ns-view-htmldestroy']);
         }
 

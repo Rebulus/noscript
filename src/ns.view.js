@@ -203,13 +203,16 @@
     /**
      * Скрывает view
      * @param {array} [events] Массив событий.
+     * @param {boolean} [preventHide=false] Не прятать ноду. Этот флаг используется при замене ноды, чтобы не делать ненужные манипуляции с DOM.
      * @returns {boolean}
      * @protected
      */
-    ns.View.prototype._hide = function(events) {
+    ns.View.prototype._hide = function(events, preventHide) {
         if (!this.isLoading() && this._visible === true) {
             this._unbindEvents('show');
-            this._hideNode();
+            if (!preventHide) {
+                this._hideNode();
+            }
             this._visible = false;
             if (events) {
                 events.push(this);
@@ -220,7 +223,9 @@
             // Случай для асинхронных видов, которые отрендерили в состоянии async,
             // но `_show` для них не выполнялся. Это происходит, например, при
             // быстрой навигации по интерфейсу.
-            this._hideNode();
+            if (!preventHide) {
+                this._hideNode();
+            }
             this._visible = false;
 
             // Чтобы не триггерились события (см ns.box).
@@ -1081,7 +1086,8 @@
             }
             //  вызываем htmldestory только если нода была заменена
             if (this.node && !this.isLoading()) {
-                this._hide(events['ns-view-hide']);
+                // ноду или заменили или сейчас заменят, поэтому менять ей класс и прятать ее на надо
+                this._hide(events['ns-view-hide'], true);
                 this._htmldestroy(events['ns-view-htmldestroy']);
             }
 
