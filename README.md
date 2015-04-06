@@ -1,23 +1,9 @@
-[![Build Status](https://travis-ci.org/yandex-ui/noscript.png?branch=master)](https://travis-ci.org/yandex-ui/noscript)
-[![NPM version](https://badge.fury.io/js/noscript.png)](http://badge.fury.io/js/noscript)
-[![Dependency Status](https://david-dm.org/yandex-ui/noscript.png)](https://david-dm.org/yandex-ui/noscript)
-# noscript - JS MVC framework
+Это форк от master. Сюда коммиты попадают без должного ревью.
 
-## Документация
-
-[Документация и best practice](https://yandex-ui.github.io/noscript/single-page/) | [JSDoc](https://yandex-ui.github.io/noscript/) 
-
-## Плагины
-
-[noscript-bosphorus](https://github.com/yandex-ui/noscript-bosphorus). Реализует мост между yate и видом/моделями и позволяет вызывать их методы из шаблона.
-
-[noscript-hash](https://github.com/doochik/noscript-hash). Заменяет History API на работу с хешами.
-
-[noscript-view-edefine](https://github.com/doochik/noscript-view-edefine). Улучшает наследование видов.
-
-[ns-rivets](https://github.com/Lapple/ns-rivets). Реализует data-binding в видах с помощью `rivets.js`.
-
-## Поддержка браузеров
- * Последние Chrome и Firefox
- * Opera 12+
- * IE9+. В `noscript` встроена поддержка History API, которого нет в IE9. Если нужна поддержка этого браузера, то стоит использовать полифилы, например, [history.js](https://github.com/browserstate/history.js) или перейти на работу с хешами через плагин `noscript-hash`.
+Список:
+ * origin/issue-441
+ * https://github.com/yandex-ui/noscript/commit/eca63784985b9b0c29d3594f46d40c42313baea2
+ * https://github.com/yandex-ui/noscript/commit/6a854872710d42ae5e08381f5c6cbd86bf636b00
+ * https://github.com/yandex-ui/noscript/pull/524 (origin/ns-view-paramsRewrite)
+ * https://github.com/yandex-ui/noscript/pull/547 (origin/fill-history)
+ * https://github.com/yandex-ui/noscript/pull/514 (origin/issue-510-dymanic-layouts)
