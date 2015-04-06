@@ -114,11 +114,19 @@
          */
         this.status = this.STATUS.NONE;
 
+        this.__customInit();
+
         // события, которые надо забиндить сразу при создании блока
         this._bindCreateEvents();
 
         this.trigger('ns-view-init');
     };
+
+    /**
+     * Специальная функция - точка расширения, в которой можно дополнить стандартный #_init.
+     * @private
+     */
+    ns.View.prototype.__customInit = no.nop;
 
     /**
      *
@@ -579,6 +587,25 @@
     ns.View.prototype.isValidSelf = ns.View.prototype.isValid;
 
     /**
+     *
+     * @returns {boolean}
+     */
+    ns.View.prototype.isValidWithDesc = function() {
+        //FIXME: надо привести в порядок всю логику вокруг
+        // isValid, isValidSelf, isValidWithDesc
+        if (!this.isValid()) {
+            return false;
+        }
+
+        for (var key in this.views) {
+            if (!this.views[key].isValidWithDesc()) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    /**
      * Returns true if models are valid and not be updated after last view update.
      * @returns {boolean}
      */
@@ -650,39 +677,122 @@
      * @param {ns.View[]} updated.sync Sync views.
      * @param {ns.View[]} updated.async Sync views.
      * @param {object} pageLayout Currently processing layout.
-     * @param {object} params Params.
+     * @param {object} updateParams Params.
      * @returns {object}
      * @private
      */
-    ns.View.prototype._getRequestViews = function(updated, pageLayout, params) {
+    ns.View.prototype._getRequestViews = function(updated, pageLayout, updateParams) {
         // Добавляем себя в обновляемые виды
-        this._addSelfToUpdate(updated);
+        var syncState = this._getSelfState();
 
-        this._saveLayout(pageLayout);
+        /**
+         * Флаг, что можно идти по детям.
+         * @type {boolean}
+         */
+        var canGoFather = true;
 
-        // Создаем подблоки
-        for (var view_id in pageLayout) {
-            this._addView(view_id, params, pageLayout[view_id].type);
+        // для асинков не ходим в patchLayout совсем
+        if (syncState) {
+            updated.sync.push(this);
+
+            // если еще не нашли patchLayout и у нас есть такая функция
+            if (typeof this.patchLayout === 'function') {
+
+                // Не надо патчить layout пока нет всех моделей
+                // После того, как модели будут запрошены, мы все равно сюда придем еще раз и получим правильный результат
+                if (this.isModelsValid()) {
+                    this.__patchLayout(pageLayout, updateParams);
+
+                } else {
+                    // т.к. patchLayout всегда что-то возвращает, то не имеет смысла идти по детям,
+                    // пока patchLayout не отработал
+                    canGoFather = false;
+
+                    // ставим флаг, что у нас есть patchLayout, но моделей нет, поэтому состояние неопределено
+                    updated.hasPatchLayout = true;
+                }
+            }
+
+        } else {
+            canGoFather = false;
+            updated.async.push(this);
         }
 
-        this._apply(function(view, id) {
-            view._getRequestViews(updated, pageLayout[id].views, params);
-        });
+        //FIXME: см. message-thread& = { message-thread-list(patchLayout) }
+        // кажется async-виды ходят вниз и его дочерние виды добавляют себя как sync
+
+        // async запускает себя на сохраненном layout
+        this._saveLayout(pageLayout);
+
+        if (canGoFather) {
+            // Создаем подблоки
+            for (var view_id in pageLayout) {
+                this._addView(view_id, updateParams, pageLayout[view_id].type);
+            }
+
+            this._apply(function(view, id) {
+                view._getRequestViews(updated, pageLayout[id].views, updateParams);
+            });
+        }
 
         return updated;
     };
 
     /**
-     * Добавляет себя в соответствующий список "обновляемых" видов
-     * @param {object} updated
+     * Производит манипуляции с раскладкой.
+     * @param {object} pageLayout
+     * @param {object} updateParams
      * @private
      */
-    ns.View.prototype._addSelfToUpdate = function(updated) {
+    ns.View.prototype.__patchLayout = function(pageLayout, updateParams) {
+        // FIXME: тут проблема в том, что сюда приходит pageLayout[id].views
+        // FIXME: возможно лучше передавать pageLayout[id] и напрямую заменять views без этой пляски
+
+        // чистим старый layout, чтобы сохранить ссылки на объекты в дереве
+        for (var oldViewId in pageLayout) {
+            delete pageLayout[oldViewId];
+
+            //FIXME: надо уничтожать виды, которых больше не в новом layout
+            // view.destroy()
+        }
+
+        var patchLayoutId = this.patchLayout(updateParams);
+        ns.View.assert(!!patchLayoutId, 11);
+
+        // компилим новый layout
+        // FIXME: а какие параметры передавать???
+        // FIXME: вообще все виды сейчас создаются с updateParams (а не view.params) из той логики,
+        // FIXME: что вид-родитель может вообще не иметь параметров, а ребенок может
+        var newViewLayout = ns.layout.page(patchLayoutId, updateParams);
+        this.__checkPatchLayout(newViewLayout);
+        // заменяем внутренности на обновленный layout
+        no.extend(pageLayout, newViewLayout);
+    };
+
+    /**
+     * Проверяет результат #patchLayout.
+     * @param {object} newLayout
+     * @private
+     */
+    ns.View.prototype.__checkPatchLayout = function(newLayout) {
+        for (var viewId in newLayout) {
+            ns.View.assert(newLayout[viewId].type === ns.L.BOX, 12);
+        }
+    };
+
+    /**
+     * Возвращает статус, в котором надо рисовать вид.
+     * @returns {boolean}
+     * @private
+     */
+    ns.View.prototype._getSelfState = function() {
         /**
          * Флаг, означающий, что view грузится асинхронно.
          * @type {Boolean}
          */
         this.asyncState = false;
+
+        var syncState = true;
 
         /*
          Логика такая: все виды должны себя ВСЕГДА добавлять.
@@ -707,13 +817,12 @@
                 // async-вид попадает в отрисовку, если
                 // - настал его черед (this.shouldBeSync === true)
                 // - имеет валидные модели (this.isModelsValid() === true)
-                updated.sync.push(this);
+                syncState = true;
 
             } else {
                 // ставим флаг, что вид будет отрисован асинхронно
                 this.asyncState = true;
-
-                updated.async.push(this);
+                syncState = false;
             }
         } else {
 
@@ -724,13 +833,13 @@
             }
 
             // обычный блок добавляем всегда
-            updated.sync.push(this);
+            syncState = true;
         }
 
         // сбрасываем флаг, чтобы вид оставался асинхронным
         this.shouldBeSync = false;
 
-        return updated;
+        return syncState;
     };
 
     /**
@@ -745,12 +854,12 @@
      *  В tree.models будут все модели, требуемые для этих блоков.
      *  @private
      */
-    ns.View.prototype._getUpdateTree = function(tree, params) {
+    ns.View.prototype._getUpdateTree = function(tree) {
         if ( !this.isValid() ) {
-            tree.views[this.id] = this._getViewTree(params);
+            tree.views[this.id] = this._getViewTree();
         } else {
             this._apply(function(view) {
-                view._getUpdateTree(tree, params);
+                view._getUpdateTree(tree);
             });
         }
 
@@ -811,11 +920,10 @@
 
     /**
      * Строим дерево блоков.
-     * @param {object} params Params.
      * @returns {ns.View~UpdateTree}
      * @private
      */
-    ns.View.prototype._getViewTree = function(params) {
+    ns.View.prototype._getViewTree = function() {
         var tree = this._getTree();
 
         // всегда собираем данные, в том числе закешированные модели для async-view
@@ -833,7 +941,7 @@
 
         //  Сюда попадают только синхронные блоки.
 
-        tree.views = this._getDescViewTree(params);
+        tree.views = this._getDescViewTree();
 
         return tree;
     };
@@ -864,15 +972,14 @@
 
     /**
      * Возвращает деревья для дочерних видов
-     * @param {object} params
      * @returns {object.<string, ns.View~UpdateTree>}
      * @private
      */
-    ns.View.prototype._getDescViewTree = function(params) {
+    ns.View.prototype._getDescViewTree = function() {
         var views = {};
         //  Собираем дерево рекурсивно из подблоков.
         this._apply(function(view, id) {
-            views[id] = view._getViewTree(params);
+            views[id] = view._getViewTree();
         });
 
         return views;
@@ -880,14 +987,21 @@
 
     /**
      * Возвращает декларацию вида для вставки плейсхолдера
-     * @param {object} params Params.
      * @returns {ns.View~UpdateTree}
      * @private
      */
-    ns.View.prototype._getPlaceholderTree = function(params) {
+    ns.View.prototype._getPlaceholderTree = function() {
         var tree = this._getTree();
         tree.state = 'placeholder';
-        tree.views = this._getDescViewTree(params);
+
+        if (this.info.isCollection) {
+            tree.views = this._getDescViewTree();
+
+        } else {
+            this._apply(function(view) {
+                view._getUpdateTree(tree);
+            });
+        }
 
         return tree;
     };
@@ -1012,13 +1126,13 @@
         }
     };
 
-    ns.View.prototype.beforeUpdateHTML = function(params, events) {
+    ns.View.prototype.beforeUpdateHTML = function(events) {
         this._selfBeforeUpdateHTML(events);
 
         //  Рекурсивно идем вниз по дереву, если не находимся в async-режиме
         if (!this.asyncState) {
             this._apply(function(view) {
-                view.beforeUpdateHTML(params, events);
+                view.beforeUpdateHTML(events);
             });
         }
     };
@@ -1723,7 +1837,9 @@
         7: 'you cannot specify params and params+ at the same time',
         8: 'you cannot specify params and params- at the same time',
         9: 'Model %s is not defined!',
-        10: 'Could not generate key for view %s'
+        10: 'Could not generate key for view %s',
+        11: '#patchLayout MUST returns valid layout ID',
+        12: '#patchLayout MUST returns layout with ns.Box at top'
     };
 
     /**
