@@ -646,19 +646,7 @@ ns.ViewCollection.prototype._updateHTML = function(node, layout, params, updateO
         var itemsExist = {};
 
         // Контейнер потомков.
-        var containerDesc;
-        if (this.$node.is('.ns-view-container-desc')) {
-            containerDesc = this.node;
-        } else {
-            containerDesc = ns.byClass('ns-view-container-desc', this.node)[0];
-        }
-
-        // Без него нельзя, т.к. если например при предыдущей отрисовке
-        // ни один потомок не был отрендерен, а при текущей добавляются новые, непонятно,
-        // в какое место их вставлять
-        if (!containerDesc) {
-            throw new Error("[ns.ViewCollection] Can't find descendants container (.ns-view-container-desc element) for '" + this.id + "'");
-        }
+        var containerDesc = this.__getContainer();
 
         // Коллекции могут быть вложенны рекурсивно,
         // но плейсхолдер отрисуется только для самых верних,
@@ -731,7 +719,53 @@ ns.ViewCollection.prototype._updateHTML = function(node, layout, params, updateO
 
             prev = view;
         });
+
+        // проверяет, что порядок видом соответствует порядку элементов коллекции
+        // этот метод нужен для обработки изменения позиции элемента
+        this.__sortViewItems();
     }
 
     this.__destroyInactiveViews();
+};
+
+/**
+ * Возвращает контейнер для элементов коллекции.
+ * @private
+ */
+ns.ViewCollection.prototype.__getContainer = function() {
+    // Контейнер потомков.
+    var containerDesc;
+    if (ns.hasClass(this.node, 'ns-view-container-desc')) {
+        containerDesc = this.node;
+    } else {
+        containerDesc = ns.byClass('ns-view-container-desc', this.node)[0];
+    }
+
+    // Без него нельзя, т.к. если например при предыдущей отрисовке
+    // ни один потомок не был отрендерен, а при текущей добавляются новые, непонятно,
+    // в какое место их вставлять
+    ns.assert(containerDesc, 'ns.ViewCollection', "Can't find descendants container (.ns-view-container-desc element) for '" + this.id + "'");
+
+    return containerDesc;
+};
+
+ns.ViewCollection.prototype.__sortViewItems = function() {
+
+    // Контейнер потомков.
+    var containerDesc = this.__getContainer();
+
+    // Итератор по HTMLCollection, который возвращает видимые ноды видов.
+    var viewNodesIterator = ns.childrenIterator(containerDesc);
+
+    this.forEachItem(function(view) {
+        var cursorViewNode = viewNodesIterator.getNext();
+
+        if (cursorViewNode !== view.node) {
+            if (cursorViewNode) {
+                containerDesc.insertBefore(view.node, cursorViewNode);
+            } else {
+                containerDesc.appendChild(view.node);
+            }
+        }
+    });
 };
