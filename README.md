@@ -7,3 +7,4 @@
  * https://github.com/yandex-ui/noscript/pull/524 (origin/ns-view-paramsRewrite)
  * https://github.com/yandex-ui/noscript/pull/547 (origin/fill-history)
  * https://github.com/yandex-ui/noscript/pull/514 (origin/issue-510-dymanic-layouts)
+ * https://github.com/yandex-ui/noscript/pull/550 (origin/view-collection-resort)
